@@ -1,0 +1,91 @@
+version: "3.9"
+
+x-default-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "5m"
+    max-file: "3"
+
+networks:
+  gis-apps-net:
+    name: gis-apps-net
+    external: true
+
+volumes:
+  gis-postgres-vol:
+    name: gis-postgres-vol
+    driver: local
+
+services:
+  postgres:
+    build:
+      context: ./docker/psql/
+    image: my-postgres:16.1-bookworm
+    container_name: gis-postgres
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - gis-postgres-vol:/var/lib/postgresql/data/pgdata
+    ports:
+      - 5432:5432
+    networks:
+      - gis-apps-net
+    logging: *logging
+
+  php-fpm8:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: gis-laravel:latest
+    container_name: gis-laravel
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+    volumes:
+      - "${PWD}/.env:/var/www/gis-laravel/.env"
+      - "${PWD}/composer.json:/var/www/gis-laravel/composer.json"
+      - "${PWD}/composer.lock:/var/www/gis-laravel/composer.lock"
+      - "${PWD}/package.json:/var/www/gis-laravel/package.json"
+      # - "${PWD}/package-lock.json:/var/www/gis-laravel/package-lock.json"
+      - "${PWD}/app/:/var/www/gis-laravel/app/"
+      - "${PWD}/bootstrap/:/var/www/gis-laravel/bootstrap/"
+      - "${PWD}/config/:/var/www/gis-laravel/config/"
+      - "${PWD}/database/:/var/www/gis-laravel/database/"
+      - "${PWD}/public/:/var/www/gis-laravel/public/"
+      - "${PWD}/resources/:/var/www/gis-laravel/resources/"
+      - "${PWD}/routes/:/var/www/gis-laravel/routes/"
+      - "${PWD}/storage/:/var/www/gis-laravel/storage/"
+      - "${PWD}/tests/:/var/www/gis-laravel/tests/"
+      # - "${PWD}/vendor:/var/www/gis-laravel/vendor"
+      - "${PWD}/artisan:/var/www/gis-laravel/artisan"
+      - "${PWD}/phpunit.xml:/var/www/gis-laravel/phpunit.xml"
+      - "${PWD}/README.md:/var/www/gis-laravel/README.md"
+      - "${PWD}/vite.config.js:/var/www/gis-laravel/vite.config.js"
+    networks:
+      - gis-apps-net
+    depends_on:
+      - postgres
+    logging: *logging
+
+  nginx:
+    image: nginx:alpine
+    container_name: gis-nginx
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+    volumes:
+      # - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./docker/nginx/subfolder.conf:/etc/nginx/conf.d/default.conf
+      - ./public:/var/www/gis-laravel/public
+    ports:
+     - 8000:80
+    networks:
+      - gis-apps-net
+    depends_on:
+     - php-fpm8
+    logging: *logging
