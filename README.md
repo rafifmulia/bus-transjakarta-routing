@@ -1,6 +1,7 @@
 # Cara Menggunakan
 - buka terminal / command prompt
 - masuk ke direktori yang telah di clone
+- copy .env.example menjadi .env
 - jalankan ./init.sh
 - akses URL di browser http://localhost:8000/apps/maps
 
